@@ -1,874 +1,432 @@
-import React, { useState, useEffect, useCallback } from "react";
-import { motion, AnimatePresence } from "framer-motion";
+import React, { useState, useEffect } from "react";
+import { motion, AnimatePresence } from "framer-motion"; // AnimatePresence for conditional rendering animations
 
-// --- Utility Components ---
+// --- Import Data ---
+import timelineData from './data/timelineData.js';
+import skillsData from './data/skillsData.js';
+import certificationsData from './data/certificationsData.js';
+import awardsData from './data/awardsData.js';
+import projectsData from './data/projectsData.js';
+import quotesData from './data/quotesData.js';
+import factsData from './data/factsData.js'; // New data for interactive facts
 
-/**
- * Reusable Card component with subtle entrance animation and enhanced styling.
- * @param {object} props - Component props.
- * @param {React.ReactNode} props.children - Content to be rendered inside the card.
- */
-const Card = ({ children }) => (
-  <motion.div
-    className="bg-white dark:bg-gray-800 rounded-xl shadow-lg p-6 mb-6 border border-gray-200 dark:border-gray-700 hover:shadow-xl transition-shadow duration-300"
-    initial={{ opacity: 0, y: 30, scale: 0.98 }}
-    whileInView={{ opacity: 1, y: 0, scale: 1 }}
-    viewport={{ once: true, amount: 0.2 }}
-    transition={{ duration: 0.7, ease: "easeOut" }}
-  >
-    {children}
-  </motion.div>
-);
+// --- Import Helper Components ---
+import TimelineItem from './components/TimelineItem.jsx';
+import SkillCard from './components/SkillCard.jsx';
+import QuoteBlock from './components/QuoteBlock.jsx';
+import InteractiveFactToggle from './components/InteractiveFactToggle.jsx';
 
-/**
- * Content wrapper for cards, providing consistent padding.
- * @param {object} props - Component props.
- * @param {React.ReactNode} props.children - Content to be rendered.
- */
-const CardContent = ({ children }) => <div>{children}</div>;
-
-/**
- * Reusable Button component with interactive animations and proper link/button handling.
- * It intelligently renders an <a> tag if href is provided, otherwise a <button>.
- * @param {object} props - Component props.
- * @param {React.ReactNode} props.children - Button label.
- * @param {string} props.href - URL for the button (optional).
- * @param {string} [props.target='_self'] - Target for the link (e.g., '_blank').
- * @param {function} props.onClick - Click handler (optional).
- * @param {string} [props.className=''] - Additional Tailwind CSS classes.
- */
-const Button = ({ children, href, target = "_self", onClick, className = '' }) => {
-  const commonClasses = "px-8 py-3 rounded-full bg-gradient-to-r from-indigo-600 to-blue-500 text-white font-semibold shadow-lg " +
-                        "hover:from-indigo-700 hover:to-blue-600 transition-all duration-300 ease-in-out transform hover:scale-105 " +
-                        "focus:outline-none focus:ring-4 focus:ring-indigo-300 dark:focus:ring-indigo-800";
-
-  if (href) {
-    return (
-      <a href={href} target={target} rel="noopener noreferrer" className={`inline-block ${className}`}>
-        <motion.button
-          className={commonClasses}
-          whileHover={{ scale: 1.05, boxShadow: "0 10px 20px rgba(0, 0, 0, 0.2)" }}
-          whileTap={{ scale: 0.95 }}
-        >
-          {children}
-        </motion.button>
-      </a>
-    );
+// --- Framer Motion Variants for Reusability ---
+const sectionVariants = {
+  hidden: { opacity: 0, y: 80 },
+  visible: {
+    opacity: 1,
+    y: 0,
+    transition: { duration: 1, ease: [0.6, 0.01, -0.05, 0.9] } // Custom ease for smoother feel
   }
-  return (
-    <motion.button
-      onClick={onClick}
-      className={`${commonClasses} ${className}`}
-      whileHover={{ scale: 1.05, boxShadow: "0 10px 20px rgba(0, 0, 0, 0.2)" }}
-      whileTap={{ scale: 0.95 }}
-    >
-      {children}
-    </motion.button>
-  );
 };
 
-/**
- * Generic Modal component for displaying overlay content with animations.
- * @param {object} props - Component props.
- * @param {boolean} props.isOpen - Controls modal visibility.
- * @param {function} props.onClose - Function to call when modal is closed.
- * @param {React.ReactNode} props.children - Content to be rendered inside the modal.
- * @param {string} props.title - Title of the modal.
- */
-const Modal = ({ isOpen, onClose, children, title }) => {
-  const modalVariants = {
-    hidden: { opacity: 0, scale: 0.8, y: -50 },
-    visible: { opacity: 1, scale: 1, y: 0, transition: { duration: 0.3, ease: "easeOut" } },
-    exit: { opacity: 0, scale: 0.8, y: 50, transition: { duration: 0.2, ease: "easeIn" } }
-  };
+const textRevealVariants = {
+  hidden: { opacity: 0, y: 20 },
+  visible: {
+    opacity: 1,
+    y: 0,
+    transition: { duration: 0.8, ease: "easeOut" }
+  }
+};
 
-  // Prevent scrolling on the body when modal is open
-  useEffect(() => {
-    if (isOpen) {
-      document.body.style.overflow = 'hidden';
-    } else {
-      document.body.style.overflow = 'unset';
+const staggerContainer = {
+  hidden: { opacity: 0 },
+  visible: {
+    opacity: 1,
+    transition: {
+      staggerChildren: 0.15,
+      delayChildren: 0.3
     }
-    return () => {
-      document.body.style.overflow = 'unset';
-    };
-  }, [isOpen]);
-
-  if (!isOpen) return null;
-
-  return (
-    <AnimatePresence>
-      {isOpen && (
-        <motion.div
-          className="fixed inset-0 bg-black bg-opacity-70 flex justify-center items-center p-4 z-50"
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          exit={{ opacity: 0 }}
-          onClick={onClose} // Close when clicking outside
-        >
-          <motion.div
-            className="bg-white dark:bg-gray-800 rounded-lg shadow-2xl p-8 w-full max-w-2xl max-h-[90vh] overflow-y-auto relative"
-            variants={modalVariants}
-            initial="hidden"
-            animate="visible"
-            exit="exit"
-            onClick={e => e.stopPropagation()} // Prevent closing when clicking inside modal content
-          >
-            <h3 className="text-2xl font-bold mb-4 text-gray-900 dark:text-gray-100 border-b pb-2 border-gray-200 dark:border-gray-700">
-              {title}
-            </h3>
-            <div className="text-gray-700 dark:text-gray-300 leading-relaxed">
-              {children}
-            </div>
-            <button
-              onClick={onClose}
-              className="absolute top-4 right-4 text-gray-500 hover:text-gray-800 dark:hover:text-gray-200 text-3xl font-bold"
-              aria-label="Close modal"
-            >
-              &times;
-            </button>
-          </motion.div>
-        </motion.div>
-      )}
-    </AnimatePresence>
-  );
+  }
 };
-
-/**
- * Dark/Light Mode Toggle button with SVG icons.
- * @param {object} props - Component props.
- * @param {boolean} props.darkMode - Current dark mode state.
- * @param {function} props.toggleDarkMode - Function to toggle dark mode.
- */
-const ThemeToggle = ({ darkMode, toggleDarkMode }) => (
-  <motion.button
-    onClick={toggleDarkMode}
-    className="fixed bottom-6 right-6 p-3 rounded-full bg-gray-200 dark:bg-gray-700 shadow-lg z-40
-               text-gray-800 dark:text-gray-100 text-xl transition-colors duration-300 focus:outline-none focus:ring-4 focus:ring-blue-300"
-    whileHover={{ scale: 1.1, rotate: 15 }}
-    whileTap={{ scale: 0.9 }}
-    aria-label="Toggle dark mode"
-  >
-    {darkMode ? (
-      <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 3v1m0 16v1m9-9h1M3 12H2m15.325-4.275l-.707-.707M6.382 17.618l-.707.707M18.364 18.364l-.707-.707M6.343 6.343l-.707-.707M16 12a4 4 0 11-8 0 4 4 0 018 0z" />
-      </svg>
-    ) : (
-      <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9 9 0 008.354-5.646z" />
-      </svg>
-    )}
-  </motion.button>
-);
 
 // --- Main Profile Component ---
-
 export default function AmanAgrawalProfile() {
-  // State for dark mode, initialized from localStorage or system preference
-  const [darkMode, setDarkMode] = useState(() => {
-    if (typeof window !== 'undefined') {
-      const savedTheme = localStorage.getItem('theme');
-      if (savedTheme) {
-        return savedTheme === 'dark';
-      }
-      return window.matchMedia('(prefers-color-scheme: dark)').matches;
-    }
-    return false;
-  });
+  const [theme, setTheme] = useState("light");
+  const [isNavOpen, setIsNavOpen] = useState(false); // For mobile navigation
 
-  // States for modal visibility and selected content
-  const [isAboutModalOpen, setIsAboutModalOpen] = useState(false);
-  const [isDetailModalOpen, setIsDetailModalOpen] = useState(false);
-  const [modalContent, setModalContent] = useState({ title: '', desc: '' });
-
-  // Effect to apply dark mode class to HTML element
   useEffect(() => {
-    if (darkMode) {
-      document.documentElement.classList.add('dark');
-      localStorage.setItem('theme', 'dark');
-    } else {
-      document.documentElement.classList.remove('dark');
-      localStorage.setItem('theme', 'light');
-    }
-  }, [darkMode]);
-
-  /** Toggles the dark mode state. */
-  const toggleDarkMode = useCallback(() => {
-    setDarkMode(prevMode => !prevMode);
+    const savedTheme = localStorage.theme || (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
+    setTheme(savedTheme);
+    document.documentElement.classList.toggle("dark", savedTheme === "dark");
   }, []);
 
-  /** Opens the About Me modal. */
-  const openAboutModal = useCallback(() => {
-    setModalContent({
-      title: "My Full Journey: Passion, Purpose, and Progress",
-      desc: "My professional journey is driven by a deep-seated passion for data and its transformative power. As an MBA graduate from IIM Sambalpur, I've cultivated a robust foundation in leveraging analytical insights to solve complex business challenges. My career has been a continuous exploration of how data can optimize operations, enhance decision-making, and drive digital innovation. From my early days at Infosys, where I honed my skills in SAP BW/HANA support and Azure Data Factory, to my current pivotal role as Technical Assistant at Tata Power DDL, I've consistently sought opportunities to apply my expertise to create tangible, impactful results. I am a Six Sigma certified professional, committed to continuous improvement and delivering excellence in every endeavor. My approach combines rigorous analytical methods with a strategic business mindset, enabling me to translate complex data into actionable insights that drive growth and efficiency. I thrive in dynamic environments where I can continuously learn and contribute to meaningful projects."
-    });
-    setIsAboutModalOpen(true);
-  }, []);
-
-  /** Closes the About Me modal. */
-  const closeAboutModal = useCallback(() => setIsAboutModalOpen(false), []);
-
-  /**
-   * Opens a generic detail modal with provided title and description.
-   * @param {string} title - Title for the modal.
-   * @param {string} desc - Detailed description for the modal.
-   */
-  const openDetailModal = useCallback((title, desc) => {
-    setModalContent({ title, desc });
-    setIsDetailModalOpen(true);
-  }, []);
-
-  /** Closes the generic detail modal. */
-  const closeDetailModal = useCallback(() => {
-    setIsDetailModalOpen(false);
-    setModalContent({ title: '', desc: '' }); // Clear content on close
-  }, []);
-
-  // Profile data
-  const profileImage = "https://media.licdn.com/dms/image/v2/D5603AQEZ1ZxlfhSHzQ/profile-displayphoto-shrink_800_800/B56ZOMbB4IGgAc-/0/1733227717110?e=1758153600&v=beta&t=AMILKILzLPvd7DLWEvFUMdL48v8gnBhplOMx5TRAxUU";
-
-  const experienceTimeline = [
-    {
-      title: "Technical Assistant, Tata Power DDL",
-      date: "May 2025 – Present",
-      desc: "Currently driving digital transformation initiatives by spearheading the implementation of the Customer Facing Module (CFM) project, significantly enhancing customer interaction and service delivery. Additionally, I am optimizing the CEO review system, streamlining reporting and decision-making processes for enhanced operational efficiency and strategic oversight.",
-      details: "Worked directly under CTO office to digitize customer feedback workflows, implemented comprehensive dashboards in Power BI for real-time performance monitoring, handled monthly cross-functional stakeholder reporting, and coordinated automation efforts with IT teams to improve operational efficiency by 25%. My role involves advanced data analysis for performance monitoring and strategic planning, utilizing tools like Power BI and Excel for comprehensive dashboards."
-    },
-    {
-      title: "Senior Systems Engineer, Infosys",
-      date: "Jan 2023 – Jun 2023",
-      desc: "Led a critical offshore SAP BW support team, ensuring the seamless operation and maintenance of complex data warehousing solutions for a global client. My role involved optimizing various reporting tools, which significantly improved data accessibility and enabled more informed business insights for key stakeholders.",
-      details: "Spearheaded client communication, led a team of 4, optimized 15+ existing SAP queries reducing load time by 30%. I was responsible for incident management, problem resolution, and implementing enhancements to ensure data integrity and system performance. My efforts directly contributed to a 15% improvement in client reporting efficiency."
-    },
-    {
-      title: "Systems Engineer, Infosys",
-      date: "Sep 2021 – Dec 2022",
-      desc: "Contributed extensively to SAP BW/HANA support, resolving intricate data issues and ensuring system stability. I was also responsible for developing and maintaining robust Azure Data Factory pipelines, facilitating efficient data ingestion, transformation, and integration across various enterprise systems.",
-      details: "Delivered full lifecycle BI implementation, from requirements gathering to deployment. Built complex ETL pipelines using Azure Data Factory, handling large volumes of data from diverse sources. Collaborated closely with German clients to gather and refine specifications, ensuring solutions met precise business needs. Played a key role in data migration projects, ensuring data quality and consistency."
-    },
-    {
-      title: "Operations Intern, GA Infra",
-      date: "Apr 2024 – Jun 2024",
-      desc: "Achieved a significant 15% reduction in non-revenue water (NRW) by applying advanced predictive modeling techniques to identify and address water loss points. This initiative demonstrated a direct, measurable impact on resource management and operational costs.",
-      details: "Worked on 5-site performance dashboards, providing real-time insights into operational metrics. Conducted in-depth anomaly detection on consumption patterns using Python/R, identifying critical areas for intervention. Developed and validated predictive models that accurately forecasted potential water losses, leading to proactive maintenance and resource optimization strategies."
-    },
-    {
-      title: "Live Projects (HDFC Life, Leap India)",
-      date: "2023 – 2024",
-      desc: "Engaged in real-world consulting projects, conducting in-depth user research to understand customer needs and pain points. I performed comprehensive performance analytics to identify areas for improvement and contributed to strategic workforce planning, aligning talent with organizational goals for enhanced productivity.",
-      details: "For HDFC Life, I created detailed wireframes and user flows for a new term insurance portal UX, based on extensive user research and A/B testing, aiming to improve customer conversion rates. For Leap India, I performed data mining and statistical analysis on HR datasets to identify talent trends and suggest optimal hiring strategies, contributing to a more agile and efficient workforce planning process. These projects honed my ability to translate data into actionable business recommendations."
-    }
-  ];
-
-  const skills = [
-    { name: "SAP BI/BO", level: "Expert", icon: "📊" },
-    { name: "Excel", level: "Advanced", icon: "📈" },
-    { name: "Power BI", level: "Intermediate", icon: "📈" },
-    { name: "R Programming", level: "Advanced", icon: "💻" },
-    { name: "Minitab", level: "Beginner", icon: "🔬" },
-    { name: "SPSS", level: "Intermediate", icon: "🧠" },
-    { name: "Azure Data Factory", level: "Intermediate", icon: "☁️" },
-    { name: "Tableau", level: "Beginner", icon: "📈" },
-    { name: "Data Warehousing", level: "Intermediate", icon: "🗄️" },
-    { name: "Business Intelligence", level: "Expert", icon: "💡" },
-    { name: "Predictive Analytics", level: "Advanced", icon: "🔮" },
-    { name: "Data Modeling", level: "Intermediate", icon: "📐" },
-    { name: "SQL", level: "Advanced", icon: "🗃️" },
-    { name: "Python (Basic)", level: "Beginner", icon: "🐍" },
-    { name: "Six Sigma", level: "Certified", icon: "✅" },
-    { name: "Project Management", level: "Intermediate", icon: "🗓️" },
-    { name: "Stakeholder Management", level: "Advanced", icon: "🤝" },
-    { name: "Problem Solving", level: "Expert", icon: "🧩" }
-  ];
-
-  const projects = [
-    {
-      title: "Predictive Telecom Analysis",
-      desc: "Developed models in R to identify at-risk customers with 80% accuracy.",
-      details: "This project involved a comprehensive analysis of customer call data records, billing information, and service usage patterns. I employed various machine learning techniques including logistic regression, decision trees, and random forests to build a robust churn prediction model. Feature engineering played a crucial role in identifying key indicators of churn. The model's insights led to a targeted marketing campaign that improved customer retention rates by 12% within six months, demonstrating the direct business impact of data-driven strategies."
-    },
-    {
-      title: "Inventory Classification – Hindalco",
-      desc: "Implemented ABC/XYZ classification for procurement efficiency.",
-      details: "Working with Hindalco, I analyzed their extensive inventory data to categorize items based on their value (ABC analysis) and demand variability (XYZ analysis). This granular classification allowed for differentiated inventory management strategies, leading to a 15% reduction in excess inventory and a 10% improvement in stock availability for critical components. I developed automated reports and dashboards to monitor inventory performance, providing real-time visibility and supporting agile decision-making for procurement and logistics teams."
-    },
-    {
-      title: "3D Printing Research",
-      desc: "Published a paper in Springer on mechanical behavior of polymeric 3D prints.",
-      details: "My research focused on understanding how different printing parameters and material compositions affect the tensile strength, flexural modulus, and impact resistance of 3D printed polymers. I designed and executed a series of experiments, utilizing advanced mechanical testing equipment. The data collected was rigorously analyzed using statistical software (Minitab, SPSS) to identify correlations and optimize printing processes for enhanced material properties. The publication of this research in a prestigious Springer journal validated the scientific rigor and practical relevance of my findings."
-    }
-  ];
-
-  const extras = [
-    "2nd in Racquet Rivals – ETHOS Fest",
-    "Organized Yoga Seminar & Blood Donation Camps",
-    "Volunteered for SMVDU Fest & NSS activities"
-  ];
-
-  const testimonials = [
-    {
-      name: "Mentor @ Infosys",
-      quote: "Aman is an outstanding performer with a strong grasp of analytics and the ability to drive measurable impact. His dedication to optimizing processes and delivering actionable insights is truly commendable. He consistently exceeds expectations and is a valuable asset to any team."
-    },
-    {
-      name: "Manager @ Tata Power DDL",
-      quote: "He adds clarity to chaos, communicates efficiently, and takes ownership of every responsibility. Aman's ability to simplify complex data and present it clearly is exceptional, making him a go-to person for critical projects. His proactive approach ensures successful project delivery."
-    }
-  ];
-
-  const certifications = [
-    { name: "Lean Six Sigma Green Belt", image: "https://placehold.co/80x80/6366F1/ffffff?text=LSS" },
-    { name: "Power BI Data Analyst Associate", image: "https://placehold.co/80x80/3B82F6/ffffff?text=PBI" },
-    { name: "AWS Cloud Practitioner", image: "https://placehold.co/80x80/F59E0B/ffffff?text=AWS" },
-    { name: "Salesforce CRM Admin", image: "https://placehold.co/80x80/EF4444/ffffff?text=SF" }
-  ];
-
-  const careerNumbers = [
-    { label: "Years of Experience", value: "3+" },
-    { label: "Projects Completed", value: "20+" },
-    { label: "Technologies Used", value: "15+" },
-    { label: "Leadership Roles", value: "5+" }
-  ];
-
-  const readingLearning = [
-    {
-      title: "Top 10 Business Analytics Books",
-      desc: "From 'Freakonomics' to 'Competing on Analytics' — a curated list of books that have profoundly shaped my analytical mindset and strategic thinking.",
-      link: "#" // Placeholder link
-    },
-    {
-      title: "Weekly AI & Data Science Digest",
-      desc: "A personal, curated digest of the latest trends, research papers, and open-source tools in Artificial Intelligence and Data Science that I explore in my free time.",
-      link: "#" // Placeholder link
-    }
-  ];
-
-  // Animation variants for staggered appearance
-  const containerVariants = {
-    hidden: { opacity: 0 },
-    visible: {
-      opacity: 1,
-      transition: {
-        staggerChildren: 0.08
-      }
-    }
+  const toggleTheme = () => {
+    const newTheme = theme === "light" ? "dark" : "light";
+    setTheme(newTheme);
+    localStorage.theme = newTheme;
+    document.documentElement.classList.toggle("dark", newTheme === "dark");
   };
 
-  const itemVariants = {
-    hidden: { opacity: 0, y: 30 },
-    visible: { opacity: 1, y: 0 }
+  const toggleNav = () => {
+    setIsNavOpen(!isNavOpen);
   };
 
-  // --- Inline Components for Modularity ---
+  // Select a random quote for display
+  const randomQuote = quotesData[Math.floor(Math.random() * quotesData.length)];
 
-  /**
-   * Hero Section Component.
-   * @param {object} props - Component props.
-   * @param {string} props.profileImage - URL of the profile image.
-   */
-  const HeroSection = ({ profileImage }) => {
-    return (
-      <section className="relative text-center p-12 bg-gradient-to-r from-blue-900 to-indigo-700 text-white dark:from-gray-800 dark:to-gray-700 overflow-hidden">
-        {/* Parallax background effect */}
+  return (
+    <div className="font-sans antialiased text-gray-900 dark:text-gray-100 bg-white dark:bg-gray-950">
+      {/* Sticky Header Navigation */}
+      <motion.header
+        className="fixed top-0 left-0 right-0 z-50 bg-white dark:bg-gray-950 bg-opacity-90 dark:bg-opacity-90 backdrop-blur-md shadow-sm py-4 px-6 md:px-12 flex justify-between items-center"
+        initial={{ y: -100, opacity: 0 }}
+        animate={{ y: 0, opacity: 1 }}
+        transition={{ duration: 0.5, ease: "easeOut" }}
+      >
+        <div className="flex items-center">
+          <a href="#" className="font-bold text-xl text-indigo-700 dark:text-indigo-400">Aman Agrawal</a>
+        </div>
+        <nav className="hidden md:flex space-x-8">
+          <a href="#story" className="text-gray-700 dark:text-gray-300 hover:text-indigo-600 dark:hover:text-indigo-400 transition font-medium">Journey</a>
+          <a href="#skills" className="text-gray-700 dark:text-gray-300 hover:text-indigo-600 dark:hover:text-indigo-400 transition font-medium">Skills</a>
+          <a href="#projects" className="text-gray-700 dark:text-gray-300 hover:text-indigo-600 dark:hover:text-indigo-400 transition font-medium">Projects</a>
+          <a href="#contact" className="text-gray-700 dark:text-gray-300 hover:text-indigo-600 dark:hover:text-indigo-400 transition font-medium">Contact</a>
+        </nav>
+        <div className="flex items-center space-x-4">
+          <button
+            onClick={toggleTheme}
+            className="p-2 rounded-full bg-gray-200 dark:bg-gray-700 text-gray-800 dark:text-white hover:scale-110 transition-transform"
+            aria-label="Toggle theme"
+          >
+            {theme === 'light' ? '☀️' : '🌙'}
+          </button>
+          <button onClick={toggleNav} className="md:hidden p-2 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500" aria-label="Open navigation">
+            <svg className="w-6 h-6 text-gray-800 dark:text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 6h16M4 12h16M4 18h16"></path></svg>
+          </button>
+        </div>
+      </motion.header>
+
+      {/* Mobile Navigation Overlay */}
+      <AnimatePresence>
+        {isNavOpen && (
+          <motion.nav
+            initial={{ opacity: 0, x: "100%" }}
+            animate={{ opacity: 1, x: 0 }}
+            exit={{ opacity: 0, x: "100%" }}
+            transition={{ duration: 0.3, ease: "easeOut" }}
+            className="fixed top-0 right-0 h-full w-full bg-white dark:bg-gray-950 z-40 flex flex-col items-center justify-center space-y-8 md:hidden"
+          >
+            <button onClick={toggleNav} className="absolute top-6 right-6 p-2 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500" aria-label="Close navigation">
+              <svg className="w-8 h-8 text-gray-800 dark:text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12"></path></svg>
+            </button>
+            <a href="#story" onClick={toggleNav} className="text-3xl font-bold text-gray-800 dark:text-gray-200 hover:text-indigo-600 dark:hover:text-indigo-400 transition">Journey</a>
+            <a href="#skills" onClick={toggleNav} className="text-3xl font-bold text-gray-800 dark:text-gray-200 hover:text-indigo-600 dark:hover:text-indigo-400 transition">Skills</a>
+            <a href="#projects" onClick={toggleNav} className="text-3xl font-bold text-gray-800 dark:text-gray-200 hover:text-indigo-600 dark:hover:text-indigo-400 transition">Projects</a>
+            <a href="#contact" onClick={toggleNav} className="text-3xl font-bold text-gray-800 dark:text-gray-200 hover:text-indigo-600 dark:hover:text-indigo-400 transition">Contact</a>
+          </motion.nav>
+        )}
+      </AnimatePresence>
+
+      {/* Hero Section - Redesigned for more impact */}
+      <section
+        className="relative min-h-screen flex flex-col justify-center items-center text-white overflow-hidden pt-20" // Added pt-20 for header clearance
+      >
+        {/* Background image with subtle parallax/scroll effect */}
         <motion.div
-          className="absolute inset-0 bg-cover bg-center"
-          style={{ backgroundImage: `url('https://images.unsplash.com/photo-1519389950473-47ba0277781c?q=80&w=2070&auto=format&fit=crop&ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D')`, backgroundAttachment: 'fixed' }}
-          initial={{ opacity: 0.5, scale: 1.1 }}
-          animate={{ opacity: 1, scale: 1 }}
-          transition={{ duration: 2 }}
+          className="absolute inset-0 bg-cover bg-center z-0"
+          style={{ backgroundImage: "url('https://images.unsplash.com/photo-1510851896000-498520af2236?fm=jpg&q=60&w=3000&ixlib=rb-4.1.0&ixid=M3wxMjA3fDB8MHxzZWFyY2h8M3x8ZGFyayUyMG9mZmljZXxlbnwwfHwwfHx8MA%3D%3D')" }}
+          initial={{ scale: 1.1 }}
+          animate={{ scale: 1 }}
+          transition={{ duration: 2, ease: "easeOut" }}
+          whileInView={{ y: [0, -50] }} // Subtle parallax on scroll
+          viewport={{ once: true, amount: 0.1 }}
         />
-        <div className="relative z-10">
+        <div className="absolute inset-0 bg-black bg-opacity-75 z-10"></div> {/* Increased opacity for better contrast */}
+
+        <div className="z-20 text-center px-6 py-12 max-w-4xl mx-auto">
           <motion.img
-            src={profileImage}
+            src="https://media.licdn.com/dms/image/v2/D5603AQEZ1ZxlfhSHzQ/profile-displayphoto-shrink_800_800/B56ZOMbB4IGgAc-/0/1733227717110?e=1758153600&v=beta&t=AMILKILzLPvd7DLWEvFUMdL48v8gnBhplOMx5TRAxUU"
             alt="Aman Agrawal"
-            className="w-36 h-36 rounded-full mx-auto mb-5 border-4 border-white shadow-xl object-cover"
-            initial={{ opacity: 0, scale: 0.7, rotate: -10 }}
-            animate={{ opacity: 1, scale: 1, rotate: 0 }}
-            transition={{ duration: 1, ease: "easeOut" }}
-            onError={(e) => { e.target.onerror = null; e.target.src = "https://placehold.co/144x144/cccccc/ffffff?text=Profile"; }} // Fallback image
+            className="rounded-full border-4 border-white w-36 h-36 sm:w-48 sm:h-48 mx-auto mb-8 shadow-2xl object-cover object-center"
+            initial={{ scale: 0, opacity: 0 }}
+            animate={{ scale: 1, opacity: 1 }}
+            transition={{ type: "spring", stiffness: 180, damping: 15, delay: 0.2 }}
           />
           <motion.h1
-            initial={{ opacity: 0, y: 20 }}
+            className="text-4xl sm:text-6xl md:text-7xl font-extrabold mb-4 leading-tight drop-shadow-lg"
+            initial={{ opacity: 0, y: 40 }}
             animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 1, delay: 0.3 }}
-            className="text-5xl font-extrabold mb-4 drop-shadow-md"
+            transition={{ delay: 0.6, duration: 1, ease: [0.6, 0.01, -0.05, 0.9] }}
           >
             Aman Agrawal
           </motion.h1>
           <motion.p
-            initial={{ opacity: 0, y: 20 }}
+            className="text-lg sm:text-2xl md:text-3xl font-light mb-6 opacity-90 max-w-3xl mx-auto"
+            initial={{ opacity: 0, y: 30 }}
             animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 1, delay: 0.5 }}
-            className="text-2xl font-light mb-2"
+            transition={{ delay: 0.9, duration: 1, ease: [0.6, 0.01, -0.05, 0.9] }}
           >
-            MBA @ IIM Sambalpur | Ex-Infosys | Technical Assistant @ Tata Power DDL
+            **Transforming Data into Strategic Narratives.**
+            <br className="hidden sm:block" /> MBA @ IIM Sambalpur | Ex-Infosys | Technical Assistant @ Tata Power DDL
           </motion.p>
-          <motion.p
-            initial={{ opacity: 0, y: 20 }}
+          <motion.a
+            href="#story"
+            className="mt-10 inline-block px-10 py-4 bg-gradient-to-r from-indigo-600 to-blue-500 text-white font-semibold text-xl rounded-full shadow-lg hover:shadow-xl hover:scale-105 transition-all transform tracking-wide"
+            initial={{ opacity: 0, y: 30 }}
             animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 1, delay: 0.7 }}
-            className="mt-3 text-lg italic"
+            transition={{ delay: 1.2, duration: 1, ease: [0.6, 0.01, -0.05, 0.9] }}
+            whileHover={{ scale: 1.05, boxShadow: "0 10px 20px rgba(0,0,0,0.2)" }}
+            whileTap={{ scale: 0.95 }}
           >
-            Data Enthusiast | SAP BI/BO | Six Sigma Certified | Powering Change Through Data
-          </motion.p>
-          <Button href="mailto:agrawalamanhnd@gmail.com" className="mt-8">
-            Connect with Aman
-          </Button>
+            Explore My Journey & Impact
+          </motion.a>
         </div>
       </section>
-    );
-  };
 
-  /**
-   * About Section Component.
-   * @param {function} openModal - Function to open the about modal.
-   */
-  const AboutSection = ({ openModal }) => (
-    <motion.section
-      className="p-12 bg-gray-50 dark:bg-gray-800"
-      initial="hidden"
-      whileInView="visible"
-      viewport={{ once: true, amount: 0.3 }}
-      variants={containerVariants}
-    >
-      <motion.h2
-        className="text-3xl font-bold mb-6 text-center text-gray-900 dark:text-gray-100"
-        variants={itemVariants}
-      >
-        My Story: Passion, Purpose, and Progress
-      </motion.h2>
-      <motion.p
-        className="max-w-3xl mx-auto text-lg text-center leading-relaxed text-gray-700 dark:text-gray-300 mb-6"
-        variants={itemVariants}
-      >
-        My professional journey is driven by a deep-seated passion for data and its transformative power. As an MBA graduate from IIM Sambalpur, I've cultivated a robust foundation in leveraging analytical insights to solve complex business challenges. My career has been a continuous exploration of how data can optimize operations, enhance decision-making, and drive digital innovation. From my early days at Infosys, where I honed my skills in SAP BI/BO and Azure Data Factory, to my current pivotal role at Tata Power DDL, I've consistently sought opportunities to apply my expertise to create tangible, impactful results. I am a Six Sigma certified professional, committed to continuous improvement and delivering excellence in every endeavor.
-      </motion.p>
-      <div className="text-center">
-        <Button onClick={openModal}>Read More About My Journey</Button>
-      </div>
-    </motion.section>
-  );
+      {/* Intriguing Quote Section */}
+      <section className="px-6 py-16 bg-gray-50 dark:bg-gray-950">
+        <div className="max-w-5xl mx-auto">
+          <QuoteBlock quote={randomQuote.quote} author={randomQuote.author} />
+        </div>
+      </section>
 
-  /**
-   * Experience Section Component.
-   * @param {Array} timeline - Array of experience objects.
-   * @param {function} openDetailModal - Function to open detail modal.
-   */
-  const ExperienceSection = ({ timeline, openDetailModal }) => (
-    <motion.section
-      className="p-12"
-      initial="hidden"
-      whileInView="visible"
-      viewport={{ once: true, amount: 0.3 }}
-      variants={containerVariants}
-    >
-      <motion.h2
-        className="text-3xl font-bold mb-8 text-center text-gray-900 dark:text-gray-100"
-        variants={itemVariants}
+      {/* Life Story Section - Reimagined as a Timeline */}
+      <motion.section
+        id="story"
+        className="px-6 py-16 bg-white dark:bg-gray-900 text-gray-800 dark:text-gray-100"
+        initial="hidden"
+        whileInView="visible"
+        viewport={{ once: true, amount: 0.1 }}
+        variants={sectionVariants}
       >
-        A Chronicle of Professional Growth
-      </motion.h2>
-      <motion.div
-        className="grid gap-8 md:grid-cols-2 lg:grid-cols-3 max-w-6xl mx-auto"
-        variants={containerVariants}
-      >
-        {timeline.map((item, index) => (
-          <Card key={index}>
-            <CardContent>
-              <h3 className="text-xl font-bold mb-2 text-indigo-700 dark:text-indigo-300">{item.title}</h3>
-              <p className="text-sm text-gray-500 dark:text-gray-400 mb-3">{item.date}</p>
-              <p className="text-gray-700 dark:text-gray-300 text-base">{item.desc}</p>
-              {item.details && (
-                <div className="mt-4 text-right">
-                  <Button
-                    onClick={() => openDetailModal(item.title, item.details)}
-                    className="!px-4 !py-2 !text-sm !rounded-md !bg-indigo-100 !text-indigo-700 dark:!bg-gray-700 dark:!text-indigo-300"
-                  >
-                    Full Details
-                  </Button>
-                </div>
-              )}
-            </CardContent>
-          </Card>
-        ))}
-      </motion.div>
-    </motion.section>
-  );
-
-  /**
-   * Skills Section Component.
-   * @param {Array} skillsList - Array of skill objects.
-   */
-  const SkillsSection = ({ skillsList }) => (
-    <motion.section
-      className="p-12 bg-gray-100 dark:bg-gray-800"
-      initial="hidden"
-      whileInView="visible"
-      viewport={{ once: true, amount: 0.3 }}
-      variants={containerVariants}
-    >
-      <motion.h2
-        className="text-3xl font-bold mb-8 text-center text-gray-900 dark:text-gray-100"
-        variants={itemVariants}
-      >
-        My Toolkit: Skills Driving Innovation
-      </motion.h2>
-      <motion.div
-        className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4 text-center max-w-5xl mx-auto"
-        variants={containerVariants}
-      >
-        {skillsList.map((skill, index) => (
-          <motion.div
-            key={index}
-            className="p-4 bg-white dark:bg-gray-700 rounded-xl shadow-md font-medium text-gray-800 dark:text-gray-200 flex flex-col items-center justify-center transition-transform transform hover:scale-105 hover:shadow-xl"
-            variants={itemVariants}
-            whileHover={{ y: -5 }}
-          >
-            <span className="text-3xl mb-2">{skill.icon}</span>
-            <p className="font-semibold">{skill.name}</p>
-            <p className="text-xs text-gray-500 dark:text-gray-300">{skill.level}</p>
+        <h2 className="text-4xl font-bold mb-12 text-center">📖 My Transformative Journey</h2>
+        <div className="max-w-4xl mx-auto relative px-4">
+          <motion.div variants={staggerContainer}>
+            {timelineData.map((item, index) => (
+              <TimelineItem
+                key={index}
+                year={item.year}
+                title={item.title}
+                description={item.description}
+              />
+            ))}
           </motion.div>
-        ))}
-      </motion.div>
-    </motion.section>
-  );
+        </div>
+      </motion.section>
 
-  /**
-   * Projects Section Component.
-   * @param {Array} projectsList - Array of project objects.
-   * @param {function} openDetailModal - Function to open project details modal.
-   */
-  const ProjectsSection = ({ projectsList, openDetailModal }) => (
-    <motion.section
-      className="p-12"
-      initial="hidden"
-      whileInView="visible"
-      viewport={{ once: true, amount: 0.3 }}
-      variants={containerVariants}
-    >
-      <motion.h2
-        className="text-3xl font-bold mb-8 text-center text-gray-900 dark:text-gray-100"
-        variants={itemVariants}
+      {/* Skills with Proficiency Section - Using SkillCard */}
+      <motion.section
+        id="skills"
+        className="px-6 py-16 bg-gray-100 dark:bg-gray-800 text-gray-800 dark:text-gray-100"
+        initial="hidden"
+        whileInView="visible"
+        viewport={{ once: true, amount: 0.1 }}
+        variants={sectionVariants}
       >
-        Impactful Endeavors: Projects & Achievements
-      </motion.h2>
-      <motion.div
-        className="space-y-8 max-w-4xl mx-auto"
-        variants={containerVariants}
+        <h2 className="text-4xl font-bold mb-12 text-center">🧠 Core Skills & Expertise</h2>
+        <div className="max-w-6xl mx-auto grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-8">
+          {skillsData.map((skill, index) => (
+            <SkillCard key={index} skill={skill.skill} percent={skill.percent} icon={skill.icon} details={skill.details} />
+          ))}
+        </div>
+      </motion.section>
+
+      {/* Certifications & Awards Section - Combined for impact */}
+      <motion.section
+        className="px-6 py-16 bg-white dark:bg-gray-900 text-gray-800 dark:text-gray-100"
+        initial="hidden"
+        whileInView="visible"
+        viewport={{ once: true, amount: 0.1 }}
+        variants={sectionVariants}
       >
-        {projectsList.map((p, i) => (
-          <Card key={i}>
-            <CardContent>
-              <h3 className="text-xl font-bold mb-2 text-indigo-700 dark:text-indigo-300">{p.title}</h3>
-              <p className="text-gray-700 dark:text-gray-300 text-base">{p.desc}</p>
-              <div className="mt-4 text-right">
-                <Button onClick={() => openDetailModal(p.title, p.details)} className="!px-4 !py-2 !text-base">
-                  Learn More
-                </Button>
+        <h2 className="text-4xl font-bold mb-12 text-center">🏅 Achievements & Credentials</h2>
+        <div className="max-w-6xl mx-auto grid grid-cols-1 md:grid-cols-2 gap-12">
+          {/* Certifications */}
+          <motion.div
+            initial="hidden"
+            whileInView="visible"
+            viewport={{ once: true, amount: 0.3 }}
+            variants={staggerContainer}
+            className="bg-gray-50 dark:bg-gray-800 p-8 rounded-xl shadow-lg border-l-4 border-purple-500 dark:border-purple-400"
+          >
+            <h3 className="text-3xl font-bold mb-6 text-indigo-700 dark:text-indigo-300">Certifications</h3>
+            <div className="space-y-4">
+              {certificationsData.map((cert, idx) => (
+                <motion.div
+                  key={idx}
+                  className="flex items-center space-x-4 p-3 bg-white dark:bg-gray-900 rounded-lg shadow-sm"
+                  variants={textRevealVariants}
+                >
+                  <span className="text-3xl flex-shrink-0">{cert.icon}</span>
+                  <p className="text-gray-800 dark:text-gray-200 font-medium text-lg">{cert.name}</p>
+                </motion.div>
+              ))}
+            </div>
+          </motion.div>
+
+          {/* Awards & Recognition */}
+          <motion.div
+            initial="hidden"
+            whileInView="visible"
+            viewport={{ once: true, true: 0.3 }}
+            variants={staggerContainer}
+            className="bg-gray-50 dark:bg-gray-800 p-8 rounded-xl shadow-lg border-l-4 border-blue-500 dark:border-blue-400"
+          >
+            <h3 className="text-3xl font-bold mb-6 text-indigo-700 dark:text-indigo-300">Awards & Recognition</h3>
+            <div className="space-y-4">
+              {awardsData.map((award, idx) => (
+                <motion.div
+                  key={idx}
+                  className="flex items-center space-x-4 p-3 bg-white dark:bg-gray-900 rounded-lg shadow-sm"
+                  variants={textRevealVariants}
+                >
+                  <span className="text-3xl flex-shrink-0">{award.icon}</span>
+                  <p className="text-gray-800 dark:text-gray-200 font-medium text-lg">{award.title}</p>
+                </motion.div>
+              ))}
+            </div>
+          </motion.div>
+        </div>
+      </motion.section>
+
+      {/* Projects Section - More Visual and Detailed */}
+      <motion.section
+        id="projects"
+        className="px-6 py-16 bg-gray-100 dark:bg-gray-800 text-gray-800 dark:text-gray-100"
+        initial="hidden"
+        whileInView="visible"
+        viewport={{ once: true, amount: 0.1 }}
+        variants={sectionVariants}
+      >
+        <h2 className="text-4xl font-bold mb-12 text-center">💼 My Impactful Projects</h2>
+        <div className="max-w-7xl mx-auto grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-10">
+          {projectsData.map((project, idx) => (
+            <motion.div
+              key={idx}
+              className="bg-white dark:bg-gray-900 p-8 rounded-xl shadow-xl border-t-8 border-indigo-600 dark:border-indigo-400 flex flex-col h-full"
+              initial={{ opacity: 0, y: 80 }}
+              whileInView={{ opacity: 1, y: 0 }}
+              viewport={{ once: true, amount: 0.4 }}
+              transition={{ duration: 0.8, delay: idx * 0.15 }}
+              whileHover={{ scale: 1.02, boxShadow: "0 15px 30px rgba(0,0,0,0.15)" }}
+            >
+              {/* Placeholder for project image/icon */}
+              <div className="w-full h-48 bg-gray-200 dark:bg-gray-700 rounded-lg mb-6 flex items-center justify-center text-5xl text-gray-500 dark:text-gray-400">
+                {project.image || "💡"} {/* Use project specific image/icon */}
               </div>
-            </CardContent>
-          </Card>
-        ))}
-      </motion.div>
-    </motion.section>
-  );
+              <h3 className="text-2xl font-bold text-indigo-700 dark:text-indigo-300 mb-3">{project.title}</h3>
+              <p className="text-gray-700 dark:text-gray-300 mb-4 flex-grow">{project.description}</p>
+              <ul className="list-disc list-inside text-gray-600 dark:text-gray-400 mb-6 text-sm space-y-1">
+                {project.highlights.map((highlight, hIdx) => (
+                  <li key={hIdx}>{highlight}</li>
+                ))}
+              </ul>
+              <a
+                href={project.link || "#"}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="mt-auto inline-block bg-indigo-600 text-white px-6 py-3 rounded-full text-lg font-medium text-center hover:bg-indigo-700 transition transform hover:scale-105"
+              >
+                View Project
+              </a>
+            </motion.div>
+          ))}
+        </div>
+      </motion.section>
 
-  /**
-   * Extras Section Component.
-   * @param {Array} extrasList - Array of extra activities.
-   */
-  const ExtrasSection = ({ extrasList }) => (
-    <motion.section
-      className="p-12 bg-gray-50 dark:bg-gray-900"
-      initial="hidden"
-      whileInView="visible"
-      viewport={{ once: true, amount: 0.3 }}
-      variants={containerVariants}
-    >
-      <motion.h2
-        className="text-3xl font-bold mb-8 text-center text-gray-900 dark:text-gray-100"
-        variants={itemVariants}
+      {/* Interactive Facts Section */}
+      <motion.section
+        className="px-6 py-16 bg-gray-50 dark:bg-gray-950 text-gray-800 dark:text-gray-100"
+        initial="hidden"
+        whileInView="visible"
+        viewport={{ once: true, amount: 0.1 }}
+        variants={sectionVariants}
       >
-        Beyond the Professional: My Passions & Contributions
-      </motion.h2>
-      <motion.ul
-        className="list-disc list-inside space-y-3 text-lg text-center max-w-3xl mx-auto text-gray-700 dark:text-gray-300"
-        variants={containerVariants}
-      >
-        {extrasList.map((item, index) => (
-          <motion.li key={index} variants={itemVariants} className="flex items-center justify-center">
-            <span className="mr-2 text-indigo-500 dark:text-blue-300 text-xl">•</span> {item}
-          </motion.li>
-        ))}
-      </motion.ul>
-    </motion.section>
-  );
+        <h2 className="text-4xl font-bold mb-12 text-center">💡 Interactive Insights About Me</h2>
+        <div className="max-w-4xl mx-auto space-y-6">
+          {factsData.map((fact, idx) => (
+            <InteractiveFactToggle
+              key={idx}
+              icon={fact.icon}
+              fact={fact}
+            />
+          ))}
+        </div>
+      </motion.section>
 
-  /**
-   * Testimonials Section Component.
-   * @param {Array} testimonialsList - Array of testimonial objects.
-   */
-  const TestimonialsSection = ({ testimonialsList }) => (
-    <motion.section
-      className="p-12 bg-white dark:bg-gray-900"
-      initial="hidden"
-      whileInView="visible"
-      viewport={{ once: true, amount: 0.3 }}
-      variants={containerVariants}
-    >
-      <motion.h2
-        className="text-3xl font-bold mb-8 text-center text-gray-900 dark:text-gray-100"
-        variants={itemVariants}
+      {/* Contact Section - Consolidated and Prominent */}
+      <motion.section
+        id="contact"
+        className="px-6 py-16 bg-indigo-900 text-white text-center"
+        initial="hidden"
+        whileInView="visible"
+        viewport={{ once: true, amount: 0.1 }}
+        variants={sectionVariants}
       >
-        What Others Say About Me
-      </motion.h2>
-      <motion.div
-        className="space-y-6 max-w-4xl mx-auto"
-        variants={containerVariants}
-      >
-        {testimonialsList.map((test, i) => (
-          <motion.div
-            key={i}
-            whileHover={{ scale: 1.01, boxShadow: "0 8px 16px rgba(0,0,0,0.1)" }}
-            className="bg-gray-100 dark:bg-gray-800 p-6 rounded-xl shadow-md border border-gray-200 dark:border-gray-700"
-            variants={itemVariants}
-          >
-            <p className="italic text-lg text-center text-gray-800 dark:text-gray-200">“{test.quote}”</p>
-            <p className="text-right mt-4 text-sm font-semibold text-indigo-600 dark:text-indigo-300">— {test.name}</p>
-          </motion.div>
-        ))}
-      </motion.div>
-    </motion.section>
-  );
-
-  /**
-   * Certifications Section Component.
-   * @param {Array} certsList - Array of certification objects.
-   */
-  const CertificationsSection = ({ certsList }) => (
-    <motion.section
-      className="p-12 bg-gray-100 dark:bg-gray-800"
-      initial="hidden"
-      whileInView="visible"
-      viewport={{ once: true, amount: 0.3 }}
-      variants={containerVariants}
-    >
-      <motion.h2
-        className="text-3xl font-bold mb-8 text-center text-gray-900 dark:text-gray-100"
-        variants={itemVariants}
-      >
-        Certifications & Badges
-      </motion.h2>
-      <motion.div
-        className="grid grid-cols-2 md:grid-cols-4 gap-6 max-w-5xl mx-auto"
-        variants={containerVariants}
-      >
-        {certsList.map((cert, index) => (
-          <motion.div
-            key={index}
-            className="text-center p-4 bg-white dark:bg-gray-700 rounded-xl shadow-md flex flex-col items-center justify-center transition-transform transform hover:scale-105 hover:shadow-xl"
-            variants={itemVariants}
-            whileHover={{ y: -5 }}
-          >
-            <img src={cert.image} alt={cert.name} className="mx-auto mb-3 w-20 h-20 object-contain rounded-full border-2 border-indigo-200 dark:border-indigo-600" />
-            <p className="text-base font-medium text-gray-800 dark:text-gray-200">{cert.name}</p>
-            <Button onClick={() => openDetailModal(cert.name, `Details for ${cert.name} certification. This certifies proficiency in relevant skills and knowledge area.`)} className="!px-3 !py-1 !text-xs !rounded-md mt-2 !bg-indigo-100 !text-indigo-700 dark:!bg-gray-600 dark:!text-indigo-200">
-              View Details
-            </Button>
-          </motion.div>
-        ))}
-      </motion.div>
-    </motion.section>
-  );
-
-  /**
-   * Quote Panel Component.
-   */
-  const QuotePanel = () => (
-    <motion.section
-      className="p-12"
-      initial="hidden"
-      whileInView="visible"
-      viewport={{ once: true, amount: 0.3 }}
-      variants={containerVariants}
-    >
-      <motion.h2
-        className="text-3xl font-bold mb-8 text-center text-gray-900 dark:text-gray-100"
-        variants={itemVariants}
-      >
-        What Drives Me
-      </motion.h2>
-      <motion.div
-        className="bg-gradient-to-br from-purple-100 to-indigo-100 dark:from-gray-700 dark:to-gray-900 p-10 rounded-xl shadow-xl text-center max-w-3xl mx-auto border border-indigo-200 dark:border-gray-700"
-        variants={itemVariants}
-      >
-        <p className="text-xl italic mb-4 text-indigo-800 dark:text-indigo-200">
-          “Solving problems with purpose, data, and heart. Every challenge is an opportunity to learn, innovate, and create meaningful impact.”
+        <h2 className="text-4xl font-bold mb-6">📬 Let's Connect & Collaborate!</h2>
+        <p className="mb-8 max-w-2xl mx-auto text-xl opacity-90">
+          Passion for data-driven impact and digital transformation. If you'd like to collaborate, discuss opportunities, or just say hello, feel free to reach out.
         </p>
-        <p className="text-base text-gray-600 dark:text-gray-300">
-          I believe in using data to tell compelling stories, solve complex business challenges, and inspire positive change. My commitment extends beyond technical solutions to fostering collaboration and driving collective success.
-        </p>
-      </motion.div>
-    </motion.section>
-  );
-
-  /**
-   * Quick Access Buttons Section.
-   */
-  const QuickAccessSection = ({ toggleDarkMode }) => (
-    <motion.section
-      className="p-12 text-center bg-gray-50 dark:bg-gray-800"
-      initial="hidden"
-      whileInView="visible"
-      viewport={{ once: true, amount: 0.3 }}
-      variants={containerVariants}
-    >
-      <motion.h2
-        className="text-3xl font-bold mb-8 text-gray-900 dark:text-gray-100"
-        variants={itemVariants}
-      >
-        Quick Access
-      </motion.h2>
-      <motion.div
-        className="flex justify-center gap-6 flex-wrap"
-        variants={containerVariants}
-      >
-        <Button href="/aman_agrawal_resume.pdf" target="_blank" className="!bg-indigo-700 !text-white hover:!bg-indigo-600">
-          Download Resume
-        </Button>
-        <Button href="mailto:agrawalamanhnd@gmail.com" className="!bg-white !border !border-indigo-600 !text-indigo-700 hover:!bg-indigo-50 dark:!bg-gray-200 dark:!text-indigo-800">
-          Hire Me
-        </Button>
-        <Button onClick={toggleDarkMode} className="!bg-gray-200 dark:!bg-gray-600 !text-gray-900 dark:!text-white hover:!bg-gray-300 dark:hover:!bg-gray-700">
-          Toggle Theme
-        </Button>
-      </motion.div>
-    </motion.section>
-  );
-
-  /**
-   * Career Numbers/Analytics Section.
-   * @param {Array} numbersList - Array of career number objects.
-   */
-  const CareerNumbersSection = ({ numbersList }) => (
-    <motion.section
-      className="p-12 bg-white dark:bg-gray-900"
-      initial="hidden"
-      whileInView="visible"
-      viewport={{ once: true, amount: 0.3 }}
-      variants={containerVariants}
-    >
-      <motion.h2
-        className="text-3xl font-bold mb-8 text-center text-gray-900 dark:text-gray-100"
-        variants={itemVariants}
-      >
-        My Career in Numbers
-      </motion.h2>
-      <motion.div
-        className="grid grid-cols-2 md:grid-cols-4 gap-6 text-center max-w-6xl mx-auto"
-        variants={containerVariants}
-      >
-        {numbersList.map((item, i) => (
-          <motion.div
-            key={i}
-            className="bg-gray-100 dark:bg-gray-800 p-6 rounded-xl shadow-md border border-gray-200 dark:border-gray-700 transition-transform transform hover:scale-105"
-            variants={itemVariants}
+        <div className="flex flex-col sm:flex-row justify-center items-center gap-6">
+          <motion.a
+            href="mailto:agrawalamanhnd@gmail.com"
+            className="bg-white text-indigo-800 px-8 py-4 rounded-full shadow-lg hover:bg-gray-200 hover:scale-105 transition transform flex items-center justify-center font-medium text-lg"
+            initial={{ opacity: 0, y: 30 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            viewport={{ once: true, amount: 0.5 }}
+            transition={{ delay: 0.1, duration: 0.6 }}
+            whileHover={{ scale: 1.05 }}
+            whileTap={{ scale: 0.95 }}
           >
-            <p className="text-4xl font-extrabold text-indigo-600 dark:text-indigo-400 mb-2">{item.value}</p>
-            <p className="text-base text-gray-700 dark:text-gray-300">{item.label}</p>
-          </motion.div>
-        ))}
-      </motion.div>
-    </motion.section>
-  );
+            <span className="mr-3 text-2xl">📧</span> Email Me
+          </motion.a>
+          <motion.a
+            href="https://www.linkedin.com/in/am-ag/"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="bg-white text-indigo-800 px-8 py-4 rounded-full shadow-lg hover:bg-gray-200 hover:scale-105 transition transform flex items-center justify-center font-medium text-lg"
+            initial={{ opacity: 0, y: 30 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            viewport={{ once: true, amount: 0.5 }}
+            transition={{ delay: 0.2, duration: 0.6 }}
+            whileHover={{ scale: 1.05 }}
+            whileTap={{ scale: 0.95 }}
+          >
+            <span className="mr-3 text-2xl">🔗</span> LinkedIn Profile
+          </motion.a>
+          <motion.a
+            href="https://github.com/am-ag"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="bg-white text-indigo-800 px-8 py-4 rounded-full shadow-lg hover:bg-gray-200 hover:scale-105 transition transform flex items-center justify-center font-medium text-lg"
+            initial={{ opacity: 0, y: 30 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            viewport={{ once: true, amount: 0.5 }}
+            transition={{ delay: 0.3, duration: 0.6 }}
+            whileHover={{ scale: 1.05 }}
+            whileTap={{ scale: 0.95 }}
+          >
+            <span className="mr-3 text-2xl">💻</span> GitHub Portfolio
+          </motion.a>
+          <motion.a
+            href="/aman-profile-site/aman_agrawal_resume.pdf"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="bg-white text-indigo-800 px-8 py-4 rounded-full shadow-lg hover:bg-gray-200 hover:scale-105 transition transform flex items-center justify-center font-medium text-lg"
+            initial={{ opacity: 0, y: 30 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            viewport={{ once: true, amount: 0.5 }}
+            transition={{ delay: 0.4, duration: 0.6 }}
+            whileHover={{ scale: 1.05 }}
+            whileTap={{ scale: 0.95 }}
+          >
+            <span className="mr-3 text-2xl">📄</span> Download Resume
+          </motion.a>
+        </div>
+      </motion.section>
 
-  /**
-   * Reading & Learning Section (Blog Preview).
-   * @param {Array} articlesList - Array of article objects.
-   */
-  const ReadingLearningSection = ({ articlesList }) => (
-    <motion.section
-      className="p-12 bg-gray-100 dark:bg-gray-800"
-      initial="hidden"
-      whileInView="visible"
-      viewport={{ once: true, amount: 0.3 }}
-      variants={containerVariants}
-    >
-      <motion.h2
-        className="text-3xl font-bold mb-8 text-center text-gray-900 dark:text-gray-100"
-        variants={itemVariants}
-      >
-        Reading & Continuous Learning
-      </motion.h2>
-      <motion.div
-        className="grid md:grid-cols-2 gap-8 max-w-4xl mx-auto"
-        variants={containerVariants}
-      >
-        {articlesList.map((blog, i) => (
-          <Card key={i}>
-            <CardContent>
-              <h3 className="text-xl font-bold mb-2 text-indigo-700 dark:text-indigo-300">{blog.title}</h3>
-              <p className="text-gray-700 dark:text-gray-300 text-base mb-4">{blog.desc}</p>
-              <div className="text-right">
-                <Button href={blog.link} target="_blank" className="!px-4 !py-2 !text-sm !rounded-md !bg-indigo-100 !text-indigo-700 dark:!bg-gray-700 dark:!text-indigo-300">
-                  Read More
-                </Button>
-              </div>
-            </CardContent>
-          </Card>
-        ))}
-      </motion.div>
-    </motion.section>
-  );
-
-  /**
-   * Footer Section.
-   */
-  const FooterSection = () => (
-    <footer className="bg-indigo-900 text-white py-8 text-center dark:bg-gray-950">
-      <p className="text-sm mb-4">© {new Date().getFullYear()} Aman Agrawal. Crafted with React + Tailwind CSS ✨</p>
-      <div className="mt-2 flex justify-center gap-6">
-        <a href="https://linkedin.com/in/am-ag" target="_blank" rel="noopener noreferrer" className="hover:underline text-lg transition-colors duration-200">
-          LinkedIn
-        </a>
-        <a href="mailto:agrawalamanhnd@gmail.com" className="hover:underline text-lg transition-colors duration-200">
-          Email
-        </a>
-        <a href="https://github.com/am-ag" target="_blank" rel="noopener noreferrer" className="hover:underline text-lg transition-colors duration-200">
-          GitHub
-        </a>
-      </div>
-    </footer>
-  );
-
-  return (
-    <div className="bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100 min-h-screen font-sans transition-colors duration-300">
-      {/* Dark/Light Mode Toggle */}
-      <ThemeToggle darkMode={darkMode} toggleDarkMode={toggleDarkMode} />
-
-      {/* Main Sections */}
-      <HeroSection profileImage={profileImage} />
-      <AboutSection openModal={openAboutModal} />
-      <ExperienceSection timeline={experienceTimeline} openDetailModal={openDetailModal} />
-      <SkillsSection skillsList={skills} />
-      <ProjectsSection projectsList={projects} openDetailModal={openDetailModal} />
-      <ExtrasSection extrasList={extras} />
-      <TestimonialsSection testimonialsList={testimonials} />
-      <CertificationsSection certsList={certifications} />
-      <QuotePanel />
-      <QuickAccessSection toggleDarkMode={toggleDarkMode} />
-      <CareerNumbersSection numbersList={careerNumbers} />
-      <ReadingLearningSection articlesList={readingLearning} />
-      <FooterSection />
-
-      {/* Modals for hidden details */}
-      <Modal isOpen={isAboutModalOpen} onClose={closeAboutModal} title={modalContent.title}>
-        {modalContent.desc}
-      </Modal>
-      <Modal isOpen={isDetailModalOpen} onClose={closeDetailModal} title={modalContent.title}>
-        {modalContent.desc}
-      </Modal>
+      {/* Footer */}
+      <footer className="bg-indigo-900 text-white py-8 text-center mt-12">
+        <p className="text-base mb-2">© {new Date().getFullYear()} Aman Agrawal • Crafted with 💙 & Analytics</p>
+        <p className="text-sm opacity-80">Turning numbers into narratives • Building impact through insight.</p>
+      </footer>
     </div>
   );
 }
